@@ -1,6 +1,7 @@
 from flask import Flask, redirect, url_for, request, render_template, jsonify
 # 로그인 관리 모듈 불러오기
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+# pip install sqlite3
 import sqlite3
 
 app = Flask(__name__)
