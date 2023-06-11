@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 #  데이터베이스 초기화
 
-#app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:ScE1234**@localhost:3306/tododb4'
+#app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:<PASSWORD>@localhost:3306/tododb4'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root@localhost:3306/tododb_sqlalchemy'
 
 # create database tododb_sqlalchemy;

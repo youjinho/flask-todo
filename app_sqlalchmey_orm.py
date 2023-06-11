@@ -1,96 +1,94 @@
 from flask import Flask, redirect, url_for, request, render_template, jsonify
 # 로그인 관리 모듈 불러오기
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-import pymysql
+
+# pip install flask_sqlalchemy
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-# Database connection info
-host = "localhost"
-user = "root"
-dbname = 'tododb'
-#password = "<PASSWORD>"
-password = ""
-port = 3306
+#  데이터베이스 초기화
 
+#app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:<PASSWORD>@localhost:3306/tododb_sqlalchemy'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root@localhost:3306/tododb_sqlalchemy'
+
+# create database tododb_sqlalchemy;
+# drop database if exists tododb_sqlalchemy;
+
+# Database connection
+db = SQLAlchemy(app)
+
+# Todos model
+class Todos(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(100))
+    todo = db.Column(db.String(100))
+    date = db.Column(db.Date)
+    done = db.Column(db.Boolean)
 
 @app.route('/home')
 @login_required    # 로그인을 한 후에 호출될 수 있음
 def home():
     return render_template('todo.html')
 
-
 @app.route('/todo/init', methods=['GET'])
 def init():
-    # Connect to MySQL
-    db = pymysql.connect(host=host, port=port, user=user, password=password)
+    db.drop_all()
+    db.create_all()
 
-    cursor = db.cursor()
-
-    # Drop if database exists and create a new one
-    cursor.execute(f"DROP DATABASE IF EXISTS {dbname};")
-    cursor.execute(f"CREATE DATABASE {dbname};")
-
-    # Use the new database
-    cursor.execute(f"USE {dbname};")
-
-    # Drop if table exists and create a new one
-    cursor.execute("DROP TABLE IF EXISTS todos;")
-    cursor.execute(
-        "CREATE TABLE todos ("
-        "id INT AUTO_INCREMENT PRIMARY KEY,"
-        "user_id VARCHAR(100),"
-        "todo VARCHAR(100),"
-        "date DATE,"
-        "done BOOLEAN);")
-
-    db.commit()
-    db.close()
-    
     return jsonify({'status': '초기화 성공!'}), 200
+
 
 @app.route('/todo/upload', methods=['POST'])
 @login_required
 def upload():
-    # Connect to MySQL
-    db = pymysql.connect(host=host, port=port, user=user, password=password, db=dbname)
-
-    cursor = db.cursor()
-
     # get the incoming data
     incoming_data = request.get_json()
     user_id=current_user.get_id()
+    
+    # Todos에서 현재 user_id의 todo 레코드들을 삭제
+    Todos.query.filter_by(user_id=user_id).delete()
+    # db.session.query(Todos).filter(Todos.user_id == user_id).delete()
 
-    # 기존 user_id의 레코드들을 삭제    
-    cursor.execute("DELETE FROM todos WHERE user_id = %s", (user_id,))
-
-    for todo in incoming_data:
-        sql = "INSERT INTO todos(user_id, todo, date, done) VALUES (%s, %s, %s, %s)"
-        cursor.execute(sql, (user_id, todo['todo'], todo['date'], todo['done']))
-
-    db.commit()
-    db.close()
+    # todo 레코드 추가: 방법1
+    for todo_item in incoming_data:
+        todo = Todos(user_id=user_id, todo=todo_item['todo'], 
+                     date=todo_item['date'], done=todo_item['done'])
+        db.session.add(todo)
+    
+    '''
+    # todo 레코드 추가: 방법2
+    todos = []
+    for todo_item in incoming_data:
+        todo = Todos(user_id=user_id, todo=todo_item['todo'], 
+                     date=todo_item['date'], done=todo_item['done'])
+        todos.append(todo)
+    db.session.add_all(todos)
+    '''
+    
+    db.session.commit()
 
     return jsonify({'status': '데이터 업로드 성공!'}), 200
+
 
 @app.route('/todo/download', methods=['GET'])
 @login_required
 def download():
-    # Connect to MySQL
-    db = pymysql.connect(host=host, port=port, user=user, password=password, db=dbname)
-
-    cursor = db.cursor()
-    cursor.execute("SELECT * FROM todos WHERE user_id = %s ORDER BY date", (current_user.get_id(),))
-    result = cursor.fetchall()
-
-    todos = []
-    for todo in result:
-        todos.append({'todo': todo[2], 'date': todo[3].strftime("%Y-%m-%d"), 'done': todo[4]})
-
-    db.close()
-
-    return jsonify(todos), 200
-
+    user_id = current_user.get_id()
+    
+    todos = Todos.query.filter_by(user_id=user_id).order_by(Todos.date).all()
+    
+    '''
+    todos = db.session.query(Todos) \
+                .filter(Todos.user_id == user_id) \
+                .order_by(Todos.date) \
+                .all()
+    '''
+    
+    return jsonify([{'todo': t.todo, 
+                     'date': t.date.strftime("%Y-%m-%d"), 
+                     'done': t.done} 
+                        for t in todos]), 200
 
 ########################  로그인 관리 #################################
 # Flask-login setup

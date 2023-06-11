@@ -4,12 +4,13 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 
 # pip install flask_sqlalchemy
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import select, insert, update, delete
 
 app = Flask(__name__)
 
 #  데이터베이스 초기화
 
-#app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:ScE1234**@localhost:3306/tododb4'
+#app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:<PASSWORD>@localhost:3306/tododb_sqlalchemy'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root@localhost:3306/tododb_sqlalchemy'
 
 # create database tododb_sqlalchemy;
@@ -38,7 +39,6 @@ def init():
 
     return jsonify({'status': '초기화 성공!'}), 200
 
-
 @app.route('/todo/upload', methods=['POST'])
 @login_required
 def upload():
@@ -47,23 +47,38 @@ def upload():
     user_id=current_user.get_id()
     
     # Todos에서 현재 user_id의 todo 레코드들을 삭제
-    Todos.query.filter_by(user_id=user_id).delete()
+    # delete_query = Todos.__table__.delete().where(Todos.user_id == user_id)
+    delete_query = delete(Todos).where(Todos.user_id == user_id)
+    db.session.execute(delete_query)
 
-    # todo 레코드 추가
+    # todo 레코드 추가: 방법2
+    todos = []
     for todo_item in incoming_data:
-        todo = Todos(user_id=user_id, todo=todo_item['todo'], date=todo_item['date'], done=todo_item['done'])
-        db.session.add(todo)
-
+        todo = { 'user_id': user_id, 'todo': todo_item['todo'], 
+                     'date': todo_item['date'], 'done': todo_item['done'] }
+        todos.append(todo)
+    
+    insert_query = insert(Todos).values(todos)
+    db.session.execute(insert_query)
     db.session.commit()
 
     return jsonify({'status': '데이터 업로드 성공!'}), 200
 
-
 @app.route('/todo/download', methods=['GET'])
 @login_required
 def download():
-    todos = Todos.query.filter_by(user_id=current_user.get_id()).order_by(Todos.date).all()
-    return jsonify([{'todo': t.todo, 'date': t.date.strftime("%Y-%m-%d"), 'done': t.done} for t in todos]), 200
+    user_id = current_user.get_id()
+
+    select_query = select(Todos) \
+                        .where(Todos.user_id == user_id) \
+                        .order_by(Todos.date)
+    result = db.session.execute(select_query)
+    todos = [row[0] for row in result]
+    
+    return jsonify([{'todo': t.todo, 
+                     'date': t.date.strftime("%Y-%m-%d"), 
+                     'done': t.done} 
+                        for t in todos]), 200
 
 ########################  로그인 관리 #################################
 # Flask-login setup
