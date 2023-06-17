@@ -32,6 +32,7 @@ def init():
             date TEXT,
             done INTEGER);
         ''')
+    cursor.execute("CREATE INDEX idx_todos_user_id ON todos (user_id);")
 
     conn.commit()
     conn.close()
