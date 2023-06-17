@@ -24,12 +24,14 @@ def init():
     # Drop if table exists and create a new one
     cursor.execute("DROP TABLE IF EXISTS todos;")
     cursor.execute(
-        "CREATE TABLE todos ("
-        "id INTEGER PRIMARY KEY,"
-        "user_id TEXT,"
-        "todo TEXT,"
-        "date TEXT,"
-        "done INTEGER);")
+        '''
+        CREATE TABLE todos (
+            id INTEGER PRIMARY KEY,
+            user_id TEXT,
+            todo TEXT,
+            date TEXT,
+            done INTEGER);
+        ''')
 
     conn.commit()
     conn.close()
